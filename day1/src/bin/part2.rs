@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::{fmt::Display, str::FromStr};
 
 fn main() {
@@ -25,6 +23,47 @@ fn parse_calibration_values(input: &str) -> Option<u32> {
     }?
     .parse()
     .ok()
+}
+
+struct DigitParser<'p> {
+    input: &'p str,
+    position: usize,
+}
+
+impl<'p> DigitParser<'p> {
+    fn new<'input: 'p>(input: &'input str) -> Self {
+        DigitParser { input, position: 0 }
+    }
+}
+
+impl Iterator for DigitParser<'_> {
+    type Item = Digit;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut end = self.position + 1;
+
+        loop {
+            if end > self.input.len() {
+                break None;
+            }
+
+            let slice = &self.input[self.position..end];
+            if let Ok(digit) = slice.parse() {
+                match slice.len() {
+                    1 => self.position += 1,
+                    _ => self.position = end - 1,
+                };
+                break Some(digit);
+            }
+
+            if end - self.position > 5 || end == self.input.len() {
+                self.position += 1;
+                end = self.position;
+            } else {
+                end += 1;
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -77,43 +116,6 @@ impl Display for Digit {
             Nine => "9",
         };
         write!(f, "{}", digit)
-    }
-}
-
-struct DigitParser<'p> {
-    input: &'p str,
-    position: usize,
-}
-
-impl<'p> DigitParser<'p> {
-    fn new<'input: 'p>(input: &'input str) -> Self {
-        DigitParser { input, position: 0 }
-    }
-}
-
-impl Iterator for DigitParser<'_> {
-    type Item = Digit;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut end = self.position + 1;
-
-        loop {
-            if end > self.input.len() {
-                break None;
-            }
-
-            if let Ok(digit) = self.input[self.position..end].parse() {
-                self.position += 1;
-                break Some(digit);
-            }
-
-            if end - self.position > 5 || end == self.input.len() {
-                self.position += 1;
-                end = self.position;
-            } else {
-                end += 1;
-            }
-        }
     }
 }
 
