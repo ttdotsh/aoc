@@ -1,37 +1,12 @@
 use std::{fmt::Display, str::FromStr};
 
-fn main() {
-    let path = include_str!("../../input.txt");
-    let sum = solve(path);
-    println!("{}", sum);
-}
-
-fn solve(input: &str) -> u32 {
-    input
-        .lines()
-        .filter_map(|line| parse_calibration_values(line))
-        .sum()
-}
-
-fn parse_calibration_values(input: &str) -> Option<u32> {
-    let mut digits = DigitParser::new(input);
-
-    match (digits.next(), digits.last()) {
-        (Some(first), Some(last)) => Some(format!("{}{}", first, last)),
-        (Some(first), None) => Some(format!("{}{}", first, first)),
-        (None, ..) => None,
-    }?
-    .parse()
-    .ok()
-}
-
-struct DigitParser<'p> {
+pub struct DigitParser<'p> {
     input: &'p str,
     position: usize,
 }
 
 impl<'p> DigitParser<'p> {
-    fn new<'input: 'p>(input: &'input str) -> Self {
+    pub fn new<'input: 'p>(input: &'input str) -> Self {
         DigitParser { input, position: 0 }
     }
 }
@@ -67,7 +42,7 @@ impl Iterator for DigitParser<'_> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Digit {
+pub enum Digit {
     One,
     Two,
     Three,
@@ -155,27 +130,5 @@ mod test {
         assert_eq!(dp.next(), Some(Digit::Two));
         assert_eq!(dp.next(), Some(Digit::Three));
         assert_eq!(dp.next(), Some(Digit::Four));
-    }
-
-    #[test]
-    fn test_parse_sample_part2_input() {
-        let input = "
-            two1nine
-            eightwothree
-            abcone2threexyz
-            xtwone3four
-            4nineeightseven2
-            zoneight234
-            7pqrstsixteen
-        "
-        .trim();
-
-        let expected = [29, 83, 13, 24, 42, 14, 76];
-
-        for (i, line) in input.lines().enumerate() {
-            let calibration_value = parse_calibration_values(line).unwrap();
-            let expected = expected[i];
-            assert_eq!(calibration_value, expected)
-        }
     }
 }

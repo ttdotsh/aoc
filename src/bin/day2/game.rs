@@ -8,9 +8,8 @@ pub struct Game {
 
 impl Game {
     pub fn is_possible(&self, colors: &(u32, u32, u32)) -> bool {
+        let (red, green, blue) = colors;
         self.reveals.iter().all(|reveal| {
-            let (red, green, blue) = colors;
-
             let mut possible = if let Some(r) = reveal.red {
                 r <= *red
             } else {
@@ -32,21 +31,15 @@ impl Game {
     pub fn min_cubes_required(&self) -> (u32, u32, u32) {
         self.reveals.iter().fold((0, 0, 0), |mut cubes, reveal| {
             if let Some(red) = reveal.red {
-                if red > cubes.0 {
-                    cubes.0 = red;
-                }
+                cubes.0 = red.max(cubes.0);
             }
 
             if let Some(green) = reveal.green {
-                if green > cubes.1 {
-                    cubes.1 = green;
-                }
+                cubes.1 = green.max(cubes.1);
             }
 
             if let Some(blue) = reveal.blue {
-                if blue > cubes.2 {
-                    cubes.2 = blue;
-                }
+                cubes.2 = blue.max(cubes.2);
             }
 
             cubes
