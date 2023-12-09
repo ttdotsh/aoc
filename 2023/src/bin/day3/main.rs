@@ -1,3 +1,4 @@
+mod maybe_chain;
 mod schematic;
 
 use aoc_2023::{show_solutions, Solution};
@@ -39,7 +40,7 @@ impl Solution for PartOne<'_> {
                 };
 
                 line.numbers.iter().fold(0, |mut sum, num| {
-                    if num.is_schematic_part(above_line, &line, below_line) {
+                    if num.is_schematic_part(above_line, line, below_line) {
                         sum += num.value;
                     }
                     sum

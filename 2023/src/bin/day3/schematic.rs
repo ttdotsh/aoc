@@ -1,3 +1,4 @@
+use super::maybe_chain::ChainOption;
 use itertools::Itertools;
 use std::{convert::Infallible, iter::once, ops::Range, str::FromStr};
 
@@ -13,23 +14,14 @@ impl SchematicLine {
             .iter()
             .filter(|sym| sym.ch == '*')
             .filter_map(|sym| {
-                let adjacent_curr = self.numbers.iter();
-                let empty = Vec::new();
+                let curr = self.numbers.iter();
+                let before = before.map(|line| line.numbers.iter());
+                let after = after.map(|line| line.numbers.iter());
 
-                let adjacent_with_before = if let Some(line) = before {
-                    adjacent_curr.chain(line.numbers.iter())
-                } else {
-                    adjacent_curr.chain(empty.iter())
-                };
-
-                let adjacent_with_after = if let Some(line) = after {
-                    adjacent_with_before.chain(line.numbers.iter())
-                } else {
-                    adjacent_with_before.chain(empty.iter())
-                };
-
-                let adjacent = adjacent_with_after
-                    .filter(|&num| sym.is_adjacent_to(num))
+                let adjacent = curr
+                    .maybe_chain(before)
+                    .maybe_chain(after)
+                    .filter(|num| sym.is_adjacent_to(num))
                     .collect_tuple();
 
                 match adjacent {
@@ -53,7 +45,7 @@ impl FromStr for SchematicLine {
             match chars.next() {
                 Some((idx, ch @ '0'..='9')) => {
                     let rest = chars
-                        .peeking_take_while(|(_, char)| char.is_digit(10))
+                        .peeking_take_while(|(_, char)| char.is_ascii_digit())
                         .map(|(_, char)| char);
                     let value = once(ch).chain(rest).collect::<String>();
 
