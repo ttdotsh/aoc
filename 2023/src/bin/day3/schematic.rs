@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::{convert::Infallible, ops::Range, str::FromStr};
+use std::{convert::Infallible, iter::once, ops::Range, str::FromStr};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SchematicLine {
@@ -7,11 +7,45 @@ pub struct SchematicLine {
     pub symbols: Vec<Symbol>,
 }
 
+impl SchematicLine {
+    pub fn gears(&self, before: Option<&Self>, after: Option<&Self>) -> Vec<Gear> {
+        self.symbols
+            .iter()
+            .filter(|sym| sym.ch == '*')
+            .filter_map(|sym| {
+                let adjacent_curr = self.numbers.iter();
+                let empty = Vec::new();
+
+                let adjacent_with_before = if let Some(line) = before {
+                    adjacent_curr.chain(line.numbers.iter())
+                } else {
+                    adjacent_curr.chain(empty.iter())
+                };
+
+                let adjacent_with_after = if let Some(line) = after {
+                    adjacent_with_before.chain(line.numbers.iter())
+                } else {
+                    adjacent_with_before.chain(empty.iter())
+                };
+
+                let adjacent = adjacent_with_after
+                    .filter(|&num| sym.is_adjacent_to(num))
+                    .collect_tuple();
+
+                match adjacent {
+                    Some((first, second)) => Some(Gear(first.value, second.value)),
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+}
+
 impl FromStr for SchematicLine {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut chars = s.char_indices().peekable();
+        let mut chars = s.trim().char_indices().peekable();
         let mut numbers = Vec::new();
         let mut symbols = Vec::new();
 
@@ -20,10 +54,8 @@ impl FromStr for SchematicLine {
                 Some((idx, ch @ '0'..='9')) => {
                     let rest = chars
                         .peeking_take_while(|(_, char)| char.is_digit(10))
-                        .map(|(_, char)| char)
-                        .collect::<String>();
-
-                    let value = format!("{}{}", ch, rest);
+                        .map(|(_, char)| char);
+                    let value = once(ch).chain(rest).collect::<String>();
 
                     let num = Number {
                         value: value.parse().unwrap(),
@@ -33,8 +65,8 @@ impl FromStr for SchematicLine {
                     numbers.push(num);
                 }
                 Some((_, '.')) => continue,
-                Some((idx, _)) => {
-                    let sym = Symbol { position: idx };
+                Some((idx, ch)) => {
+                    let sym = Symbol { ch, pos: idx };
 
                     symbols.push(sym);
                 }
@@ -59,37 +91,44 @@ impl Number {
         curr: &SchematicLine,
         below: Option<&SchematicLine>,
     ) -> bool {
-        let Range { start, end } = self.pos;
-
-        let is_adjacent_on_neighboring_line = |s: &Symbol| {
-            let in_range = self.pos.contains(&s.position);
-            let adjacent_to_start = s.position <= start && start - s.position <= 1;
-            let adjacent_to_end = s.position >= end && s.position - end == 0;
-            in_range || adjacent_to_start || adjacent_to_end
-        };
-
-        let mut has_adj_sym = match above {
-            Some(line) => line.symbols.iter().any(is_adjacent_on_neighboring_line),
+        let has_adjacent_above = match above {
+            Some(line) => line.symbols.iter().any(|sym| sym.is_adjacent_to(self)),
             None => false,
         };
 
-        has_adj_sym = has_adj_sym
-            || curr.symbols.iter().any(|sym| {
-                let just_before_start = sym.position < start && start - sym.position == 1;
-                let just_after_end = sym.position == end;
-                just_before_start || just_after_end
-            });
+        let has_adjacent_curr = curr.symbols.iter().any(|sym| sym.is_adjacent_to(self));
 
-        has_adj_sym = match below {
-            Some(line) => has_adj_sym || line.symbols.iter().any(is_adjacent_on_neighboring_line),
-            None => has_adj_sym,
+        let has_adjacent_below = match below {
+            Some(line) => line.symbols.iter().any(|sym| sym.is_adjacent_to(self)),
+            None => false,
         };
 
-        has_adj_sym
+        has_adjacent_above || has_adjacent_curr || has_adjacent_below
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Symbol {
-    position: usize,
+    ch: char,
+    pos: usize,
+}
+
+impl Symbol {
+    fn is_adjacent_to(&self, num: &Number) -> bool {
+        let Range { start, end } = num.pos;
+
+        let in_range = num.pos.contains(&self.pos);
+        let adjacent_to_start = self.pos <= start && start - self.pos <= 1;
+        let adjacent_to_end = self.pos == end;
+
+        in_range || adjacent_to_start || adjacent_to_end
+    }
+}
+
+pub struct Gear(u32, u32);
+
+impl Gear {
+    pub fn ratio(&self) -> u32 {
+        self.0 * self.1
+    }
 }
