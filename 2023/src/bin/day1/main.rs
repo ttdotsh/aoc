@@ -29,7 +29,7 @@ impl Solution for PartOne<'_> {
         self.0
             .lines()
             .filter_map(|line| {
-                let mut digits = line.chars().filter(|ch| ch.is_digit(10));
+                let mut digits = line.chars().filter(|ch| ch.is_ascii_digit());
 
                 match (digits.next(), digits.last()) {
                     (Some(first), Some(last)) => Some(format!("{}{}", first, last)),
