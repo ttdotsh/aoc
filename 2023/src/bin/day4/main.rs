@@ -29,80 +29,23 @@ impl Solution for PartOne<'_> {
             .lines()
             .map(|line| {
                 let (_, numbers) = line.trim().split_once(':').unwrap();
-                let (winning, actual) = numbers.split_once('|').unwrap();
-                let winning = winning.split(' ').collect::<Vec<_>>();
+                let (winners, actual) = numbers.split_once('|').unwrap();
+                let winning_nums = winners.split_whitespace().collect::<Vec<_>>();
 
                 let matches = actual
-                    .split(' ')
-                    .filter(|str| !str.is_empty())
-                    .filter(|str| winning.contains(str));
+                    .split_whitespace()
+                    .filter(|str| winning_nums.contains(str));
 
-                let card_value = matches.fold(0, |acc, _| match acc {
+                matches.fold(0, |acc, _| match acc {
                     0 => 1,
                     v => v * 2,
-                });
-                card_value
+                })
             })
             .sum()
     }
 }
 
 struct PartTwo<'a>(&'a str);
-
-impl<'a> PartTwo<'a> {
-    fn new(input: &'a str) -> Self {
-        Self(input)
-    }
-
-    #[allow(dead_code)]
-    fn count_scratchcards<R>(cards: &BTreeMap<u32, u32>, range: R) -> u32
-    where
-        R: RangeBounds<u32>,
-    {
-        cards
-            .range(range)
-            .map(|(card_num, num_matches)| {
-                let yields = match num_matches {
-                    0 => 0,
-                    n => {
-                        let range = (Excluded(*card_num), Included(*card_num + n));
-                        PartTwo::count_scratchcards(cards, range)
-                    }
-                };
-                yields + 1
-            })
-            .sum()
-    }
-
-    #[allow(dead_code)]
-    fn count_scratchcards_dynamic(cards: &BTreeMap<u32, u32>) -> u32 {
-        let mut yields = BTreeMap::<u32, u32>::new();
-
-        cards
-            .iter()
-            .rev()
-            .fold(0, |total, (card, matched_winners)| {
-                let bonus_cards = match matched_winners {
-                    0 => 0,
-                    n => {
-                        let start = card + 1;
-                        let end = start + n;
-                        (start..end).into_iter().fold(0, |sum, card_num| {
-                            if let Some(amt) = yields.get(&card_num) {
-                                sum + *amt
-                            } else {
-                                sum
-                            }
-                        })
-                    }
-                };
-
-                let net_worth = bonus_cards + 1;
-                yields.insert(*card, net_worth);
-                total + net_worth
-            })
-    }
-}
 
 impl Solution for PartTwo<'_> {
     type Output = u32;
@@ -114,26 +57,67 @@ impl Solution for PartTwo<'_> {
             .lines()
             .map(|line| {
                 let (card, numbers) = line.trim().split_once(':').unwrap();
-                let card_num = card
-                    .replace("Card", "")
-                    .replace(' ', "")
-                    .parse::<u32>()
-                    .unwrap();
-                let (winning, actual) = numbers.split_once('|').unwrap();
-                let winning = winning.split(' ').collect::<Vec<_>>();
+                let card_num = card.replace("Card", "").replace(' ', "").parse().unwrap();
+                let (winners, actual) = numbers.split_once('|').unwrap();
+                let winning_nums = winners.split_whitespace().collect::<Vec<_>>();
 
                 let matches = actual
-                    .split(' ')
-                    .filter(|str| !str.is_empty())
-                    .filter(|str| winning.contains(str))
+                    .split_whitespace()
+                    .filter(|str| winning_nums.contains(str))
                     .count() as u32;
 
                 (card_num, matches)
             })
             .collect::<BTreeMap<u32, u32>>();
 
-        // PartTwo::count_scratchcards(&cards, ..)
+        // PartTwo::count_scratchcards_recursive(&cards, ..)
         PartTwo::count_scratchcards_dynamic(&cards)
+    }
+}
+
+impl<'a> PartTwo<'a> {
+    fn new(input: &'a str) -> Self {
+        Self(input)
+    }
+
+    #[allow(unused)]
+    fn count_scratchcards_recursive<R>(cards: &BTreeMap<u32, u32>, range: R) -> u32
+    where
+        R: RangeBounds<u32>,
+    {
+        cards
+            .range(range)
+            .map(|(card_number, matches)| {
+                let yields = match matches {
+                    0 => 0,
+                    n => {
+                        let range = (Excluded(*card_number), Included(*card_number + n));
+                        PartTwo::count_scratchcards_recursive(cards, range)
+                    }
+                };
+                yields + 1
+            })
+            .sum()
+    }
+
+    #[allow(unused)]
+    fn count_scratchcards_dynamic(cards: &BTreeMap<u32, u32>) -> u32 {
+        let mut yields = BTreeMap::new();
+
+        cards.iter().rev().fold(0, |total, (card_number, matches)| {
+            let bonus_cards = match matches {
+                0 => 0,
+                n => {
+                    let start = card_number + 1;
+                    let end = start + n;
+                    (start..end).fold(0, |sum, card| *yields.get(&card).unwrap() + sum)
+                }
+            };
+
+            let net_worth = bonus_cards + 1;
+            yields.insert(*card_number, net_worth);
+            total + net_worth
+        })
     }
 }
 
