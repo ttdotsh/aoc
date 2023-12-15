@@ -1,21 +1,13 @@
-use std::str::FromStr;
+use std::{ops::Range, str::FromStr};
 
 use itertools::Itertools;
 
 #[derive(Debug)]
-pub struct Mapper {
-    maps: Vec<Map>,
+pub struct Almanac {
+    pub maps: Vec<Map>,
 }
 
-impl Mapper {
-    pub fn find_destination(&self, seed: u64) -> u64 {
-        self.maps
-            .iter()
-            .fold(seed, |s, map| map.find_next_destination(s))
-    }
-}
-
-impl FromIterator<Map> for Mapper {
+impl FromIterator<Map> for Almanac {
     fn from_iter<T: IntoIterator<Item = Map>>(iter: T) -> Self {
         let maps = iter.into_iter().collect();
         Self { maps }
@@ -24,18 +16,37 @@ impl FromIterator<Map> for Mapper {
 
 #[derive(Debug)]
 pub struct Map {
-    ranges: Vec<MapRange>,
+    pub ranges: Vec<MapRange>,
 }
 
 impl Map {
-    fn find_next_destination(&self, source: u64) -> u64 {
-        for range in self.ranges.iter() {
-            match range.check_for_destination(source) {
-                Some(dest) => return dest,
-                None => (),
+    pub fn map_to_next(&self, seed: u64) -> u64 {
+        match self.ranges.iter().find(|r| r.contains(&seed)) {
+            Some(range) => range.translate(seed),
+            None => seed,
+        }
+    }
+
+    pub fn with_implicit_empty_ranges(self) -> Self {
+        let mut empty_ranges = Vec::new();
+
+        for (a, b) in self.ranges.iter().tuple_windows() {
+            if b.src.start - a.src.end > 0 {
+                empty_ranges.push(MapRange {
+                    src: a.src.end..b.src.start,
+                    dest: a.src.end..b.src.start,
+                })
             }
         }
-        source
+
+        Self {
+            ranges: self
+                .ranges
+                .into_iter()
+                .chain(empty_ranges.into_iter())
+                .sorted_by(|a, b| Ord::cmp(&a.src.start, &b.src.start))
+                .collect(),
+        }
     }
 }
 
@@ -47,38 +58,53 @@ impl FromStr for Map {
             .lines()
             .filter(|line| !line.ends_with("map:"))
             .filter_map(|line| {
-                let (dest_start, source_start, length) = line
+                let (dest_start, src_start, length) = line
                     .trim()
                     .split_whitespace()
                     .filter_map(|str| str.parse().ok())
                     .collect_tuple()?;
 
                 Some(MapRange {
-                    dest_start,
-                    source_start,
-                    length,
+                    src: src_start..src_start + length,
+                    dest: dest_start..dest_start + length,
                 })
             })
-            .collect();
+            .sorted_by(|a, b| Ord::cmp(&a.src.start, &b.src.start))
+            .collect::<Vec<_>>();
 
         Ok(Map { ranges })
     }
 }
 
-#[derive(Debug)]
-struct MapRange {
-    dest_start: u64,
-    source_start: u64,
-    length: u64,
+#[derive(Debug, PartialEq, Eq)]
+pub struct MapRange {
+    pub src: Range<u64>,
+    pub dest: Range<u64>,
 }
 
 impl MapRange {
-    fn check_for_destination(&self, source: u64) -> Option<u64> {
-        let source_range = self.source_start..self.source_start + self.length;
+    pub fn contains(&self, seed: &u64) -> bool {
+        self.src.contains(seed)
+    }
 
-        if source_range.contains(&source) {
-            let diff = source - source_range.start;
-            Some(self.dest_start + diff)
+    pub fn translate(&self, seed: u64) -> u64 {
+        if self.contains(&seed) {
+            let diff = seed - self.src.start;
+            self.dest.start + diff
+        } else {
+            seed
+        }
+    }
+
+    pub fn translate_range(&self, seed_range: &Range<u64>) -> Option<Range<u64>> {
+        if self.contains(&seed_range.start) {
+            let start = self.translate(seed_range.start);
+            let end = self
+                .contains(&seed_range.end)
+                .then(|| self.translate(seed_range.end))
+                .unwrap_or_else(|| self.dest.end);
+
+            Some(start..end)
         } else {
             None
         }
@@ -95,10 +121,51 @@ mod test {
 
         let map = input.parse::<Map>().unwrap();
 
-        assert_eq!(map.find_next_destination(98), 50);
-        assert_eq!(map.find_next_destination(99), 51);
-        assert_eq!(map.find_next_destination(10), 10);
-        assert_eq!(map.find_next_destination(50), 52);
-        assert_eq!(map.find_next_destination(53), 55);
+        assert_eq!(map.map_to_next(98), 50);
+        assert_eq!(map.map_to_next(99), 51);
+        assert_eq!(map.map_to_next(10), 10);
+        assert_eq!(map.map_to_next(50), 52);
+        assert_eq!(map.map_to_next(53), 55);
+    }
+
+    #[test]
+    fn test_empty_ranges() {
+        let input = "50 98 2\n52 50 38";
+        let expected = Map {
+            ranges: vec![
+                MapRange {
+                    src: 50..88,
+                    dest: 52..90,
+                },
+                MapRange {
+                    src: 88..98,
+                    dest: 88..98,
+                },
+                MapRange {
+                    src: 98..100,
+                    dest: 50..52,
+                },
+            ],
+        };
+        let map = input.parse::<Map>().unwrap().with_implicit_empty_ranges();
+
+        assert_eq!(map.ranges, expected.ranges);
+
+        let input = "50 98 2\n52 50 48";
+        let expected = Map {
+            ranges: vec![
+                MapRange {
+                    src: 50..98,
+                    dest: 52..100,
+                },
+                MapRange {
+                    src: 98..100,
+                    dest: 50..52,
+                },
+            ],
+        };
+        let map = input.parse::<Map>().unwrap().with_implicit_empty_ranges();
+
+        assert_eq!(map.ranges, expected.ranges);
     }
 }

@@ -1,6 +1,8 @@
 mod map;
 
-use map::Mapper;
+use std::ops::Range;
+
+use map::{Almanac, Map};
 
 use aoc_2023::{show_solutions, Solution};
 use itertools::Itertools;
@@ -40,16 +42,13 @@ impl Solution for PartOne<'_> {
             .map(|line| line.trim())
             .group_by(|line| !line.is_empty())
             .into_iter()
-            .filter_map(|(key, mut group)| match key {
-                true => Some(group.join("\n")),
-                false => None,
-            })
+            .filter_map(|(key, mut group)| key.then_some(group.join("\n")))
             .filter_map(|str| str.parse().ok())
-            .collect::<Mapper>();
+            .collect::<Almanac>();
 
         seeds
             .into_iter()
-            .map(|seed| mapper.find_destination(seed))
+            .map(|seed| mapper.maps.iter().fold(seed, |s, map| map.map_to_next(s)))
             .min()
             .unwrap()
     }
@@ -76,29 +75,44 @@ impl Solution for PartTwo<'_> {
             .split_whitespace()
             .map(|str| str.parse::<u64>().unwrap())
             .tuples()
-            .collect::<Vec<(u64, u64)>>();
+            .map(|(start, len)| start..start + len)
+            .collect::<Vec<Range<u64>>>();
 
         let mapper = lines
             .map(|line| line.trim())
             .group_by(|line| !line.is_empty())
             .into_iter()
-            .filter_map(|(key, mut group)| match key {
-                true => Some(group.join("\n")),
-                false => None,
-            })
+            .filter_map(|(key, mut group)| key.then_some(group.join("\n")))
             .filter_map(|str| str.parse().ok())
-            .collect::<Mapper>();
+            .map(|map: Map| map.with_implicit_empty_ranges())
+            .collect::<Almanac>();
 
         seed_ranges
             .into_iter()
-            .inspect(|tuple| println!("{:?}", tuple))
-            .filter_map(|(start, length)| {
-                (start..start + length)
-                    .map(|seed| mapper.find_destination(seed))
-                    .min()
+            .fold(std::u64::MAX, |mut lowest, mut seed_range| {
+                while seed_range.end - seed_range.start > 0 {
+                    let subrange =
+                        mapper
+                            .maps
+                            .iter()
+                            .fold(seed_range.start..seed_range.end, |seeds, map| {
+                                map.ranges
+                                    .iter()
+                                    .find(|r| r.contains(&seeds.start))
+                                    .and_then(|range| range.translate_range(&seeds))
+                                    .unwrap_or_else(|| seeds)
+                            });
+
+                    let size = subrange.end - subrange.start;
+
+                    seed_range.start += size;
+
+                    if subrange.start < lowest {
+                        lowest = subrange.start;
+                    }
+                }
+                lowest
             })
-            .min()
-            .unwrap()
     }
 }
 
